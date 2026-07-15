@@ -107,3 +107,50 @@ def customer_above_average(db: Session = Depends(get_db)):
 
     return [{"nama": r.nama, "total_belanja": r.total_belanja} for r in results]
     
+
+# Soal 4: Produk Terlaris per Kategori (CTE)
+
+@app.get("/reports/top-product-by-category")
+def top_product_by_category(db: Session = Depends(get_db)):
+    
+    product_sales = (
+        db.query(
+            Product.kategori.label("kategori"),
+            Product.nama_produk.label("nama_produk"),
+            func.sum(Order.jumlah).label("total_terjual"),
+        )
+        .join(Order, Order.product_id == Product.id)
+        .group_by(Product.id, Product.kategori, Product.nama_produk)
+        .cte(name="product_sales")
+    )
+
+
+    ranked_sales = (
+        db.query(
+            product_sales.c.kategori,
+            product_sales.c.nama_produk,
+            product_sales.c.total_terjual,
+            func.rank()
+            .over(
+                partition_by=product_sales.c.kategori,
+                order_by=product_sales.c.total_terjual.desc(),
+            )
+            .label("peringkat"),
+        )
+        .cte(name="ranked_sales")
+    )
+
+    results = (
+        db.query(
+            ranked_sales.c.kategori,
+            ranked_sales.c.nama_produk,
+            ranked_sales.c.total_terjual,
+        )
+        .filter(ranked_sales.c.peringkat == 1)
+        .all()
+    )
+
+    return [
+        {"kategori": r.kategori, "nama_produk": r.nama_produk, "total_terjual": r.total_terjual}
+        for r in results
+              ]
