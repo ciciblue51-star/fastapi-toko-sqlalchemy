@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -59,3 +60,19 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Product deleted successfully"}
   
+
+# Soal 2: Total Belanja Customer (JOIN + SUM)
+@app.get("/reports/customer-total")
+def customer_total(db: Session = Depends(get_db)):
+    results = (
+        db.query(
+            Customer.nama,
+            func.sum(Order.jumlah * Product.harga).label("total_belanja"),
+        )
+        .join(Order, Order.customer_id == Customer.id)
+        .join(Product, Product.id == Order.product_id)
+        .group_by(Customer.id, Customer.nama)
+        .order_by(func.sum(Order.jumlah * Product.harga).desc())
+        .all()
+    )
+    return [{"nama": r.nama, "total_belanja": r.total_belanja} for r in results]
