@@ -25,8 +25,18 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/products", response_model=list[ProductResponse])
-def get_all_products(db: Session = Depends(get_db)):
-    return db.query(Product).all()
+def get_all_products(
+    skip: int = 0,
+    limit: int = 10,
+    kategori: str | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Product)
+
+    if kategori is not None:
+        query = query.filter(Product.kategori == kategori)
+
+    return query.offset(skip).limit(limit).all()
 
 
 @app.get("/products/{product_id}", response_model=ProductResponse)
