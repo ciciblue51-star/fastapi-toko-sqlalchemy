@@ -1,3 +1,4 @@
+from sqlalchemy import case
 from sqlalchemy import func
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -154,3 +155,40 @@ def top_product_by_category(db: Session = Depends(get_db)):
         {"kategori": r.kategori, "nama_produk": r.nama_produk, "total_terjual": r.total_terjual}
         for r in results
               ]
+
+# Soal 5: Klasifikasi Customer (CTE + CASE Statement)
+
+@app.get("/reports/customer-level")
+def customer_level(db: Session = Depends(get_db)):
+    # CTE: total belanja per customer
+    customer_totals = (
+        db.query(
+            Customer.nama.label("nama"),
+            func.sum(Order.jumlah * Product.harga).label("total_belanja"),
+        )
+        .join(Order, Order.customer_id == Customer.id)
+        .join(Product, Product.id == Order.product_id)
+        .group_by(Customer.id, Customer.nama)
+        .cte(name="customer_totals")
+    )
+
+    level_case = case(
+        (customer_totals.c.total_belanja > 5000000, "VIP"),
+        (customer_totals.c.total_belanja >= 1000000, "Regular"),
+        else_="Basic",
+    ).label("level_customer")
+
+    results = (
+        db.query(
+            customer_totals.c.nama,
+            customer_totals.c.total_belanja,
+            level_case,
+        )
+        .order_by(customer_totals.c.total_belanja.desc())
+        .all()
+    )
+
+    return [
+        {"nama": r.nama, "total_belanja": r.total_belanja, "level_customer": r.level_customer}
+        for r in results
+    ]
