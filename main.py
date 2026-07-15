@@ -76,3 +76,34 @@ def customer_total(db: Session = Depends(get_db)):
         .all()
     )
     return [{"nama": r.nama, "total_belanja": r.total_belanja} for r in results]
+
+# Soal 3: Customer di Atas Rata-Rata Belanja (Subquery)
+@app.get("/reports/customer-above-average")
+def customer_above_average(db: Session = Depends(get_db)):
+    # Subquery: total belanja per customer
+    customer_totals = (
+        db.query(
+            Customer.id.label("customer_id"),
+            Customer.nama.label("nama"),
+            func.sum(Order.jumlah * Product.harga).label("total_belanja"),
+        )
+        .join(Order, Order.customer_id == Customer.id)
+        .join(Product, Product.id == Order.product_id)
+        .group_by(Customer.id, Customer.nama)
+        .subquery()
+    )
+
+    # Subquery: rata-rata total belanja semua customer
+    average_belanja = db.query(
+        func.avg(customer_totals.c.total_belanja)
+    ).scalar_subquery()
+
+    results = (
+        db.query(customer_totals.c.nama, customer_totals.c.total_belanja)
+        .filter(customer_totals.c.total_belanja > average_belanja)
+        .order_by(customer_totals.c.total_belanja.desc())
+        .all()
+    )
+
+    return [{"nama": r.nama, "total_belanja": r.total_belanja} for r in results]
+    
